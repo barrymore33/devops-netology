@@ -11,3 +11,4 @@
  - Файлы содержащие в названии `_override.tf` и `_override.tf.json`
  - Файлы конфигурации командной строки `.terraformrc` и `terraform.rc`
 
+### Новая версия master
