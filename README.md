@@ -1,62 +1,106 @@
-# Домашнее задание к занятию "3.3. Операционные системы, лекция 1"
+# Домашнее задание к занятию "3.4. Операционные системы, лекция 2"
 
-1. Какой системный вызов делает команда `cd`? 
-   ```bash
-   vagrant@vagrant:~$ strace /bin/bash -c 'cd /tmp' 2>&1 | grep cd
-   execve("/bin/bash", ["/bin/bash", "-c", "cd /tmp"], 0x7ffd971a0b40 /* 24 vars */) = 0
-   ```
-2. Используя `strace` выясните, где находится база данных `file` на основании которой она делает свои догадки.
-   * `openat(AT_FDCWD, "/usr/share/misc/magic.mgc", O_RDONLY) = 3`
-3. Предположим, приложение пишет лог в текстовый файл. Этот файл оказался удален (deleted в lsof), однако возможности сигналом сказать приложению переоткрыть файлы или просто перезапустить приложение – нет. Так как приложение продолжает писать в удаленный файл, место на диске постепенно заканчивается. Основываясь на знаниях о перенаправлении потоков предложите способ обнуления открытого удаленного файла (чтобы освободить место на файловой системе).
-   * `lsof -nP | grep '(deleted)' #получить pid процесса` 
-   * `cat /proc/$pid/fd/$fd > /dev/null/delete_file`
-4. Занимают ли зомби-процессы какие-то ресурсы в ОС (CPU, RAM, IO)?
-   * Зомби-процессы не занимают ресурсы ОС, но блокируют записи в таблице процессов.
-5. На какие файлы вы увидели вызовы группы `open` за первую секунду работы утилиты? :
-   ```bash
-   vagrant@vagrant:~$ sudo opensnoop-bpfcc
-   PID    COMM               FD ERR PATH
-   780    vminfo              4   0 /var/run/utmp
-   565    dbus-daemon        -1   2 /usr/local/share/dbus-1/system-services
-   565    dbus-daemon        18   0 /usr/share/dbus-1/system-services
-   565    dbus-daemon        -1   2 /lib/dbus-1/system-services
-   565    dbus-daemon        18   0 /var/lib/snapd/dbus-1/system-services/
-    ```
-6. Какой системный вызов использует `uname -a`? Приведите цитату из man по этому системному вызову, где описывается альтернативное местоположение в `/proc`, где можно узнать версию ядра и релиз ОС.
-   * `execve("/usr/bin/uname", ["uname", "-a"], 0x7fff6c729008 /* 24 vars */) = 0`
-   * `Part of the utsname information is also accessible  via  /proc/sys/kernel/{ostype, hostname, osrelease, version, domainname}.
-`
-7. Чем отличается последовательность команд через `;` и через `&&` в bash? Например:
+1. Используя знания из лекции по systemd, создайте самостоятельно простой [unit-файл](https://www.freedesktop.org/software/systemd/man/systemd.service.html) для node_exporter:
+
+```bash 
+sudo useradd -r -M -s /bin/false node_exporter #Создаем системного пользователя, от которого будет работать Node Exporter
+wget https://github.com/prometheus/node_exporter/releases/download/v1.3.0/node_exporter-1.3.0.linux-amd64.tar.gz
+tar -zxpvf node_exporter-1.0.1.linux-amd64.tar.gz
+cd node_exporter-1.3.0.linux-amd64
+sudo cp node_exporter /usr/local/bin
+sudo chown node_exporter:node_exporter /usr/local/bin/node_exporter
+```
+
+```bash
+sudo nano /etc/systemd/system/node_exporter.service                                                                                  
+
+[Unit]
+Description=Prometheus Node Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+EnvironmentFile=/etc/node_exporter/node_exporter.conf
+ExecStart=/usr/local/bin/node_exporter $OPTIONS
+
+[Install]
+WantedBy=multi-user.target
+```
+```bash
+$ sudo nano /etc/node_exporter/node_exporter.conf
+OPTIONS="--collector.ntp"
+```
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable
+sudo systemctl start
+sudo systemctl status node_exporter
+```
+```bash
+barrymore@wpbase:~/node_exporter-1.3.0.linux-amd64$ sudo lsof -i -P -n | grep 9100
+node_expo 37873   node_exporter    3u  IPv6 2706599019      0t0  TCP *:9100 (LISTEN)
+```
+2. Ознакомьтесь с опциями node_exporter и выводом `/metrics` по-умолчанию. Приведите несколько опций, которые вы бы выбрали для базового мониторинга хоста по CPU, памяти, диску и сети.
+   * CPU `node_load1` `node_load5` `node_load15` `node_cpu_seconds_total`
+   * RAM `node_memory_MemTotal_bytes` `node_memory_MemAvailable_bytes` `node_memory_MemTotal_bytes-node_memory_MemAvailable_bytes`
+   * Storage `node_filesystem_free_bytes` `node_filesystem_size_bytes` `1-node_filesystem_free_bytes/node_filesystem_size_bytes`
+   * I/O `node_disk_writes_completed_total` `node_disk_io_time_seconds_total` `node_disk_written_bytes_total` тоже самое для чтения
+   * Network `node_network_receive_bytes_total` `node_network_transmit_bytes_total`
+3. Установите в свою виртуальную машину [Netdata](https://github.com/netdata/netdata). Воспользуйтесь [готовыми пакетами](https://packagecloud.io/netdata/netdata/install) для установки (`sudo apt install -y netdata`). После успешной установки:
+    * в конфигурационном файле `/etc/netdata/netdata.conf` в секции [web] замените значение с localhost на `bind to = 0.0.0.0`,
+    * добавьте в Vagrantfile проброс порта Netdata на свой локальный компьютер и сделайте `vagrant reload`:
+
     ```bash
-    root@netology1:~# test -d /tmp/some_dir; echo Hi
-    Hi
-    root@netology1:~# test -d /tmp/some_dir && echo Hi
-    root@netology1:~#
+    config.vm.network "forwarded_port", guest: 19999, host: 19999
     ```
-   Есть ли смысл использовать в bash `&&`, если применить `set -e`?
-   * В первом случае команды выполняются последовательно, не зависимо от кода выхода
-   * В последнем случае вторая команда исполняется только тогда, когда выход из первой команды равен нулю(успешное исполнение команды)
-   * Нет смысла, команды равноценны.
-8. Из каких опций состоит режим bash `set -euxo pipefail` и почему его хорошо было бы использовать в сценариях?
-   * -e Выйти немедленно если команда не завершается успешно.
-   * -u Расценивать не объявленные переменные как ошибку
-   * -x Выводить команды и их аргументы в момент их выполнения
-   * -o pipefail Выводит команду которая выполнилась с ошибкой в пайплайне (с не нулевым кодом выхода)
-   * Данная конструкция может помочь в дебаге скриптов и предотвращает дальнейшее неправильное исполнение скрипта в случае ошибки на одном из этапов.
-9. Используя `-o stat` для `ps`, определите, какой наиболее часто встречающийся статус у процессов в системе. В `man ps` ознакомьтесь (`/PROCESS STATE CODES`) что значат дополнительные к основной заглавной буквы статуса процессов. Его можно не учитывать при расчете (считать S, Ss или Ssl равнозначными).
-   ```bash
-   vagrant@vagrant:~$ ps -axo stat | sort -n | uniq -c | sort -n
-      1 R+
-      1 Sl
-      1 SLsl
-      1 S<s
-      1 STAT
-      2 SN
-      4 S+
-      4 Ssl
-      8 I
-     15 Ss
-     24 S
-     39 I<
-   ```
-   * S=52 Итого самым распространенным являются спящие процессы, которые могут быть вызваны из сна.
+
+    После успешной перезагрузки в браузере *на своем ПК* (не в виртуальной машине) вы должны суметь зайти на `localhost:19999`. Ознакомьтесь с метриками, которые по умолчанию собираются Netdata и с комментариями, которые даны к этим метрикам.
+
+4. Можно ли по выводу `dmesg` понять, осознает ли ОС, что загружена не на настоящем оборудовании, а на системе виртуализации?
+```bash
+root@swzabbix:~# dmesg | grep virt
+[    0.015184] Booting paravirtualized kernel on KVM
+[    1.306722] virtio_blk virtio2: [vda] 67108864 512-byte logical blocks (34.4 GB/32.0 GiB)
+[    1.310610] virtio_net virtio3 ens18: renamed from eth0
+[    8.026257] systemd[1]: Detected virtualization kvm. 
+ ```
+Но есть более простой способ
+для гостя будет такой вывод:
+```bash
+root@swzabbix:~# systemd-detect-virt
+kvm
+```
+А для хоста или baremetal машины такой:
+```bash
+root@proxmox:~# systemd-detect-virt
+none
+```
+5. Как настроен sysctl `fs.nr_open` на системе по-умолчанию? Узнайте, что означает этот параметр. Какой другой существующий лимит не позволит достичь такого числа (`ulimit --help`)?
+```bash
+barrymore@wpbase:~$ sudo sysctl fs.nr_open
+fs.nr_open = 1048576
+```
+* nr_open - максимальное количество файлов, которое может быть выделено одним процессом
+* ulimit -n the maximum number of open file descriptors
+6. Запустите любой долгоживущий процесс (не `ls`, который отработает мгновенно, а, например, `sleep 1h`) в отдельном неймспейсе процессов; покажите, что ваш процесс работает под PID 1 через `nsenter`. Для простоты работайте в данном задании под root (`sudo -i`). Под обычным пользователем требуются дополнительные опции (`--map-root-user`) и т.д.
+```bash
+root@wpbase:~# unshare -f --pid --mount-proc /usr/bin/top
+```
+```bash
+root@wpbase:~# ps aux | grep top
+root         480  0.0  0.0   2340   520 pts/2    S+   17:55   0:00 unshare -f --pid --mount-proc /usr/bin/top
+root         481  0.0  0.6   6988  3348 pts/2    S+   17:55   0:00 /usr/bin/top
+root         490  0.0  0.1   3180   716 pts/3    S+   17:57   0:00 grep top
+```
+```bash
+root@wpbase:~# nsenter --target 481 --pid --mount
+root@wpbase:/# ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.0   6988  3348 pts/2    S+   17:55   0:00 /usr/bin/top
+root           3  0.0  0.0   4764  4156 pts/3    S    17:57   0:00 -bash
+root           6  0.0  0.0   6700  2924 pts/3    R+   17:57   0:00 ps aux
+```
+7. Найдите информацию о том, что такое `:(){ :|:& };:`. Запустите эту команду в своей виртуальной машине Vagrant с Ubuntu 20.04 (**это важно, поведение в других ОС не проверялось**). Некоторое время все будет "плохо", после чего (минуты) – ОС должна стабилизироваться. Вызов `dmesg` расскажет, какой механизм помог автоматической стабилизации. Как настроен этот механизм по-умолчанию, и как изменить число процессов, которое можно создать в сессии?
