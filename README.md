@@ -49,16 +49,8 @@ node_expo 37873   node_exporter    3u  IPv6 2706599019      0t0  TCP *:9100 (LIS
    * Storage `node_filesystem_free_bytes` `node_filesystem_size_bytes` `1-node_filesystem_free_bytes/node_filesystem_size_bytes`
    * I/O `node_disk_writes_completed_total` `node_disk_io_time_seconds_total` `node_disk_written_bytes_total` тоже самое для чтения
    * Network `node_network_receive_bytes_total` `node_network_transmit_bytes_total`
-3. Установите в свою виртуальную машину [Netdata](https://github.com/netdata/netdata). Воспользуйтесь [готовыми пакетами](https://packagecloud.io/netdata/netdata/install) для установки (`sudo apt install -y netdata`). После успешной установки:
-    * в конфигурационном файле `/etc/netdata/netdata.conf` в секции [web] замените значение с localhost на `bind to = 0.0.0.0`,
-    * добавьте в Vagrantfile проброс порта Netdata на свой локальный компьютер и сделайте `vagrant reload`:
-
-    ```bash
-    config.vm.network "forwarded_port", guest: 19999, host: 19999
-    ```
-
-    После успешной перезагрузки в браузере *на своем ПК* (не в виртуальной машине) вы должны суметь зайти на `localhost:19999`. Ознакомьтесь с метриками, которые по умолчанию собираются Netdata и с комментариями, которые даны к этим метрикам.
-
+3. Установите в свою виртуальную машину [Netdata](https://github.com/netdata/netdata).
+![](img/netdata.png)
 4. Можно ли по выводу `dmesg` понять, осознает ли ОС, что загружена не на настоящем оборудовании, а на системе виртуализации?
 ```bash
 root@swzabbix:~# dmesg | grep virt
@@ -67,13 +59,13 @@ root@swzabbix:~# dmesg | grep virt
 [    1.310610] virtio_net virtio3 ens18: renamed from eth0
 [    8.026257] systemd[1]: Detected virtualization kvm. 
  ```
-Но есть более простой способ
-для гостя будет такой вывод:
+Но есть более простой способ:
+* для гостя будет такой вывод
 ```bash
 root@swzabbix:~# systemd-detect-virt
 kvm
 ```
-А для хоста или baremetal машины такой:
+* а для хоста или baremetal машины такой
 ```bash
 root@proxmox:~# systemd-detect-virt
 none
@@ -104,3 +96,6 @@ root           3  0.0  0.0   4764  4156 pts/3    S    17:57   0:00 -bash
 root           6  0.0  0.0   6700  2924 pts/3    R+   17:57   0:00 ps aux
 ```
 7. Найдите информацию о том, что такое `:(){ :|:& };:`. Запустите эту команду в своей виртуальной машине Vagrant с Ubuntu 20.04 (**это важно, поведение в других ОС не проверялось**). Некоторое время все будет "плохо", после чего (минуты) – ОС должна стабилизироваться. Вызов `dmesg` расскажет, какой механизм помог автоматической стабилизации. Как настроен этот механизм по-умолчанию, и как изменить число процессов, которое можно создать в сессии?
+```bash
+[Wed Nov 24 20:06:14 2021] cgroup: fork rejected by pids controller in /user.slice/user-1000.slice/session-3.scope
+```
