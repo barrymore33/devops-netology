@@ -10,7 +10,6 @@ cd node_exporter-1.3.0.linux-amd64
 sudo cp node_exporter /usr/local/bin
 sudo chown node_exporter:node_exporter /usr/local/bin/node_exporter
 ```
-
 ```bash
 sudo nano /etc/systemd/system/node_exporter.service                                                                                  
 
