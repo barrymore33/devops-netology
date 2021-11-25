@@ -36,7 +36,6 @@ OPTIONS="--collector.ntp"
 sudo systemctl daemon-reload
 sudo systemctl enable
 sudo systemctl start
-sudo systemctl status node_exporter
 ```
 ```bash
 barrymore@wpbase:~/node_exporter-1.3.0.linux-amd64$ sudo lsof -i -P -n | grep 9100
@@ -44,8 +43,8 @@ node_expo 37873   node_exporter    3u  IPv6 2706599019      0t0  TCP *:9100 (LIS
 ```
 2. Ознакомьтесь с опциями node_exporter и выводом `/metrics` по-умолчанию. Приведите несколько опций, которые вы бы выбрали для базового мониторинга хоста по CPU, памяти, диску и сети.
    * CPU `node_load1` `node_load5` `node_load15` `node_cpu_seconds_total`
-   * RAM `node_memory_MemTotal_bytes` `node_memory_MemAvailable_bytes` `node_memory_MemTotal_bytes-node_memory_MemAvailable_bytes`
-   * Storage `node_filesystem_free_bytes` `node_filesystem_size_bytes` `1-node_filesystem_free_bytes/node_filesystem_size_bytes`
+   * RAM `node_memory_MemTotal_bytes` `node_memory_MemAvailable_bytes`
+   * Storage `node_filesystem_free_bytes` `node_filesystem_size_bytes`
    * I/O `node_disk_writes_completed_total` `node_disk_io_time_seconds_total` `node_disk_written_bytes_total` тоже самое для чтения
    * Network `node_network_receive_bytes_total` `node_network_transmit_bytes_total`
 3. Установите в свою виртуальную машину [Netdata](https://github.com/netdata/netdata).
@@ -58,7 +57,7 @@ root@swzabbix:~# dmesg | grep virt
 [    1.310610] virtio_net virtio3 ens18: renamed from eth0
 [    8.026257] systemd[1]: Detected virtualization kvm. 
  ```
-Но есть более простой способ:
+Есть способ проще:
 * для гостя будет такой вывод
 ```bash
 root@swzabbix:~# systemd-detect-virt
@@ -75,8 +74,8 @@ barrymore@wpbase:~$ sudo sysctl fs.nr_open
 fs.nr_open = 1048576
 ```
 * nr_open - максимальное количество файлов, которое может быть выделено одним процессом
-* ulimit -n the maximum number of open file descriptors
-6. Запустите любой долгоживущий процесс (не `ls`, который отработает мгновенно, а, например, `sleep 1h`) в отдельном неймспейсе процессов; покажите, что ваш процесс работает под PID 1 через `nsenter`. Для простоты работайте в данном задании под root (`sudo -i`). Под обычным пользователем требуются дополнительные опции (`--map-root-user`) и т.д.
+* ulimit -n
+6. Запустите любой долгоживущий процесс (не `ls`, который отработает мгновенно, а, например, `sleep 1h`) в отдельном неймспейсе процессов; покажите, что ваш процесс работает под PID 1 через `nsenter`.
 ```bash
 root@wpbase:~# unshare -f --pid --mount-proc /usr/bin/top
 ```
@@ -95,6 +94,8 @@ root           3  0.0  0.0   4764  4156 pts/3    S    17:57   0:00 -bash
 root           6  0.0  0.0   6700  2924 pts/3    R+   17:57   0:00 ps aux
 ```
 7. Найдите информацию о том, что такое `:(){ :|:& };:`. Запустите эту команду в своей виртуальной машине Vagrant с Ubuntu 20.04 (**это важно, поведение в других ОС не проверялось**). Некоторое время все будет "плохо", после чего (минуты) – ОС должна стабилизироваться. Вызов `dmesg` расскажет, какой механизм помог автоматической стабилизации. Как настроен этот механизм по-умолчанию, и как изменить число процессов, которое можно создать в сессии?
+* Кострукция `:(){ :|:& };:` является форкбомбой, которая бесконечно создает свои копии (системным вызовом fork()), создавающие свои копии. 
 ```bash
 [Wed Nov 24 20:06:14 2021] cgroup: fork rejected by pids controller in /user.slice/user-1000.slice/session-3.scope
 ```
+* От зависания систему спасает systemd создающий cgroup для каждого пользователя который не дает сожрать все ресурсы системы ограничивая максимальное количество процессов для пользователа  по TasksMax  
